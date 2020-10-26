@@ -20,7 +20,8 @@ from rest_framework_jwt.blacklist.exceptions import (
 )
 from rest_framework_jwt.compat import gettext_lazy as _
 from rest_framework_jwt.compat import smart_str
-from rest_framework_jwt.settings import api_settings
+from rest_framework_jwt.settings import api_settings, DEFAULT_ISSUER_CODE
+from rest_framework_jwt.utils import jwt_get_issuer
 
 
 class JSONWebTokenAuthentication(BaseAuthentication):
@@ -35,26 +36,30 @@ class JSONWebTokenAuthentication(BaseAuthentication):
     """
 
     www_authenticate_realm = 'api'
+    issuer_code = DEFAULT_ISSUER_CODE
 
     @classmethod
     def jwt_create_payload(cls, *args, **kwargs):
-        return api_settings.JWT_PAYLOAD_HANDLER(*args, **kwargs)
+        kwargs['issuer_code'] = cls.issuer_code
+        return api_settings.get_issuer_settings(cls.issuer_code).JWT_PAYLOAD_HANDLER(*args, **kwargs)
 
     @classmethod
     def jwt_encode_payload(cls, *args, **kwargs):
-        return api_settings.JWT_ENCODE_HANDLER(*args, **kwargs)
+        kwargs['issuer_code'] = cls.issuer_code
+        return api_settings.get_issuer_settings(cls.issuer_code).JWT_ENCODE_HANDLER(*args, **kwargs)
 
     @classmethod
     def jwt_decode_token(cls, *args, **kwargs):
-        return api_settings.JWT_DECODE_HANDLER(*args, **kwargs)
+        kwargs['issuer_code'] = cls.issuer_code
+        return api_settings.get_issuer_settings(cls.issuer_code).JWT_DECODE_HANDLER(*args, **kwargs)
 
     @classmethod
     def jwt_get_username_from_payload(cls, *args, **kwargs):
-        return api_settings.JWT_PAYLOAD_GET_USERNAME_HANDLER(*args, **kwargs)
+        return api_settings.get_issuer_settings(cls.issuer_code).JWT_PAYLOAD_GET_USERNAME_HANDLER(*args, **kwargs)
 
     @classmethod
     def jwt_create_response_payload(cls, *args, **kwargs):
-        return api_settings.JWT_RESPONSE_PAYLOAD_HANDLER(*args, **kwargs)
+        return api_settings.get_issuer_settings(cls.issuer_code).JWT_RESPONSE_PAYLOAD_HANDLER(*args, **kwargs)
 
     def authenticate(self, request):
         """
@@ -73,6 +78,13 @@ class JSONWebTokenAuthentication(BaseAuthentication):
             if BlacklistedToken.objects.filter(token=force_str(token)).exists():
                 msg = _('Token is blacklisted.')
                 raise exceptions.PermissionDenied(msg)
+
+        # Check that the issuer of the JWT is the same of this authentication class
+        # if the issuer it's present and it's not the same of this auth class, return None
+        # to go ahead with other auth classes
+        issuer = jwt_get_issuer(token)
+        if issuer and issuer != self.issuer_code:
+            return None
 
         try:
             payload = self.jwt_decode_token(token)
@@ -114,20 +126,20 @@ class JSONWebTokenAuthentication(BaseAuthentication):
 
     @classmethod
     def prefixes_match(cls, prefix):
-        authorization_header_prefix = api_settings.JWT_AUTH_HEADER_PREFIX.lower()
+        authorization_header_prefix = api_settings.get_issuer_settings(cls.issuer_code).JWT_AUTH_HEADER_PREFIX.lower()
 
         return smart_str(prefix.lower()) == authorization_header_prefix
 
     @classmethod
     def get_token_from_cookies(cls, cookies):
-        if api_settings.JWT_IMPERSONATION_COOKIE:
-            imp_user_token = cookies.get(api_settings.JWT_IMPERSONATION_COOKIE)
+        if api_settings.get_issuer_settings(cls.issuer_code).JWT_IMPERSONATION_COOKIE:
+            imp_user_token = cookies.get(api_settings.get_issuer_settings(cls.issuer_code).JWT_IMPERSONATION_COOKIE)
             if imp_user_token:
                 return imp_user_token
 
-        if api_settings.JWT_AUTH_COOKIE:
+        if api_settings.get_issuer_settings(cls.issuer_code).JWT_AUTH_COOKIE:
             try:
-                return cookies[api_settings.JWT_AUTH_COOKIE]
+                return cookies[api_settings.get_issuer_settings(cls.issuer_code).JWT_AUTH_COOKIE]
             except KeyError:
                 raise MissingToken
 
@@ -165,5 +177,5 @@ class JSONWebTokenAuthentication(BaseAuthentication):
         """
 
         return '{0} realm="{1}"'.format(
-            api_settings.JWT_AUTH_HEADER_PREFIX, self.www_authenticate_realm
+            api_settings.get_issuer_settings(self.issuer_code).JWT_AUTH_HEADER_PREFIX, self.www_authenticate_realm
         )
