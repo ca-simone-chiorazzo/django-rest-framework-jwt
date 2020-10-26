@@ -4,6 +4,7 @@ from __future__ import unicode_literals
 
 from rest_framework.generics import GenericAPIView
 from rest_framework.response import Response
+
 from .compat import set_cookie_with_token
 from .permissions import IsSuperUser
 from .authentication import JSONWebTokenAuthentication
@@ -15,6 +16,8 @@ from .settings import api_settings
 
 class BaseJSONWebTokenAPIView(GenericAPIView):
     """Base JWT auth view used for all other JWT views (verify/refresh)."""
+
+    _jwt_auth_class = JSONWebTokenAuthentication
 
     permission_classes = ()
     authentication_classes = ()
@@ -29,13 +32,13 @@ class BaseJSONWebTokenAPIView(GenericAPIView):
         user = serializer.validated_data.get('user') or request.user
         token = serializer.validated_data.get('token')
         issued_at = serializer.validated_data.get('issued_at')
-        response_data = JSONWebTokenAuthentication. \
+        response_data = self._jwt_auth_class. \
             jwt_create_response_payload(token, user, request, issued_at)
 
         response = Response(response_data)
-
-        if api_settings.JWT_AUTH_COOKIE:
-            set_cookie_with_token(response, api_settings.JWT_AUTH_COOKIE, token)
+        issuer_settings = api_settings.get_issuer_settings(self._jwt_auth_class.issuer_code)
+        if issuer_settings.JWT_AUTH_COOKIE:
+            set_cookie_with_token(response, issuer_settings.JWT_AUTH_COOKIE, token, self._jwt_auth_class.issuer_code)
 
         return response
 
@@ -83,6 +86,7 @@ class ImpersonateJSONWebTokenView(GenericAPIView):
     Returns:
         dict: {"token": user's JWT}
     """
+    _jwt_auth_class = JSONWebTokenAuthentication
 
     permission_classes = (IsSuperUser, )
     serializer_class = ImpersonateAuthTokenSerializer
@@ -94,12 +98,13 @@ class ImpersonateJSONWebTokenView(GenericAPIView):
 
         token = serializer.validated_data.get("token")
         response = Response({"token": token})
+        issuer_settings = api_settings.get_issuer_settings(self._jwt_auth_class.issuer_code)
 
-        if api_settings.JWT_IMPERSONATION_COOKIE:
+        if issuer_settings.JWT_IMPERSONATION_COOKIE:
             set_cookie_with_token(
                 response,
-                api_settings.JWT_IMPERSONATION_COOKIE,
-                token)
+                issuer_settings.JWT_IMPERSONATION_COOKIE,
+                token, issuer_code=self._jwt_auth_class.issuer_code)
 
         return response
 
