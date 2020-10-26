@@ -39,16 +39,17 @@ def has_set_cookie_samesite():
     return (VERSION >= (2,1,0))
 
 
-def set_cookie_with_token(response, name, token):
+def set_cookie_with_token(response, name, token, issuer_code):
+    issuer_settings = api_settings.get_issuer_settings(issuer_code)
     params = {
-        'expires': datetime.utcnow() + api_settings.JWT_EXPIRATION_DELTA,
-        'domain': api_settings.JWT_AUTH_COOKIE_DOMAIN,
-        'path': api_settings.JWT_AUTH_COOKIE_PATH,
-        'secure': api_settings.JWT_AUTH_COOKIE_SECURE,
+        'expires': datetime.utcnow() + issuer_settings.JWT_EXPIRATION_DELTA,
+        'domain': issuer_settings.JWT_AUTH_COOKIE_DOMAIN,
+        'path': issuer_settings.JWT_AUTH_COOKIE_PATH,
+        'secure': issuer_settings.JWT_AUTH_COOKIE_SECURE,
         'httponly': True
     }
 
     if has_set_cookie_samesite():
-        params.update({'samesite': api_settings.JWT_AUTH_COOKIE_SAMESITE})
+        params.update({'samesite': issuer_settings.JWT_AUTH_COOKIE_SAMESITE})
 
     response.set_cookie(name, token, **params)
