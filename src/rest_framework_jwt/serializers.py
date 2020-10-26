@@ -3,7 +3,6 @@
 from __future__ import unicode_literals
 
 from django.contrib.auth import authenticate, get_user_model
-
 from rest_framework import serializers
 
 from rest_framework_jwt.authentication import JSONWebTokenAuthentication
@@ -17,7 +16,12 @@ from rest_framework_jwt.utils import (
 )
 
 
-class JSONWebTokenSerializer(serializers.Serializer):
+class BaseJSONWebTokenSerializer(serializers.Serializer):
+    """ Base Serialized used to spread to all the other serializers the JWT auth class used """
+    _jwt_auth_class = JSONWebTokenAuthentication
+
+
+class JSONWebTokenSerializer(BaseJSONWebTokenSerializer):
     """
     Serializer class used to validate a username and password.
 
@@ -53,16 +57,16 @@ class JSONWebTokenSerializer(serializers.Serializer):
             msg = _('Unable to log in with provided credentials.')
             raise serializers.ValidationError(msg)
 
-        payload = JSONWebTokenAuthentication.jwt_create_payload(user)
+        payload = self._jwt_auth_class.jwt_create_payload(user)
 
         return {
-            'token': JSONWebTokenAuthentication.jwt_encode_payload(payload),
+            'token': self._jwt_auth_class.jwt_encode_payload(payload),
             'user': user,
             'issued_at': payload.get('iat', unix_epoch())
         }
 
 
-class VerifyAuthTokenSerializer(serializers.Serializer):
+class VerifyAuthTokenSerializer(BaseJSONWebTokenSerializer):
     """
     Serializer used for verifying JWTs.
     """
@@ -72,8 +76,8 @@ class VerifyAuthTokenSerializer(serializers.Serializer):
     def validate(self, data):
         token = data['token']
 
-        payload = check_payload(token=token)
-        user = check_user(payload=payload)
+        payload = check_payload(jwt_auth_class=self._jwt_auth_class, token=token)
+        user = check_user(jwt_auth_class=self._jwt_auth_class, payload=payload)
 
         return {
             'token': token,
@@ -82,7 +86,7 @@ class VerifyAuthTokenSerializer(serializers.Serializer):
         }
 
 
-class RefreshAuthTokenSerializer(serializers.Serializer):
+class RefreshAuthTokenSerializer(BaseJSONWebTokenSerializer):
     """
     Serializer used for refreshing JWTs.
     """
@@ -92,8 +96,8 @@ class RefreshAuthTokenSerializer(serializers.Serializer):
     def validate(self, data):
         token = data['token']
 
-        payload = check_payload(token=token)
-        user = check_user(payload=payload)
+        payload = check_payload(token=token, jwt_auth_class=self._jwt_auth_class)
+        user = check_user(payload=payload, jwt_auth_class=self._jwt_auth_class)
 
         # Get and check 'orig_iat'
         orig_iat = payload.get('orig_iat')
@@ -101,10 +105,10 @@ class RefreshAuthTokenSerializer(serializers.Serializer):
         if orig_iat is None:
             msg = _('orig_iat field not found in token.')
             raise serializers.ValidationError(msg)
-
+        issuer_settings = api_settings.get_issuer_settings(self._jwt_auth_class.issuer_code)
         # Verify expiration
         refresh_limit = \
-            api_settings.JWT_REFRESH_EXPIRATION_DELTA.total_seconds()
+            issuer_settings.JWT_REFRESH_EXPIRATION_DELTA.total_seconds()
 
         expiration_timestamp = orig_iat + refresh_limit
         now_timestamp = unix_epoch()
@@ -113,20 +117,20 @@ class RefreshAuthTokenSerializer(serializers.Serializer):
             msg = _('Refresh has expired.')
             raise serializers.ValidationError(msg)
 
-        new_payload = JSONWebTokenAuthentication.jwt_create_payload(user)
+        new_payload = self._jwt_auth_class.jwt_create_payload(user)
         new_payload['orig_iat'] = orig_iat
 
         # Track the token ID of the original token, if it exists
         orig_jti = payload.get('orig_jti') or payload.get('jti')
         if orig_jti:
             new_payload['orig_jti'] = orig_jti
-        elif api_settings.JWT_TOKEN_ID == 'require':
+        elif issuer_settings.JWT_TOKEN_ID == 'require':
             msg = _('orig_jti or jti field not found in token.')
             raise serializers.ValidationError(msg)
 
         return {
             'token':
-                JSONWebTokenAuthentication.jwt_encode_payload(new_payload),
+                self._jwt_auth_class.jwt_encode_payload(new_payload),
             'user':
                 user,
             'issued_at':
@@ -134,7 +138,7 @@ class RefreshAuthTokenSerializer(serializers.Serializer):
         }
 
 
-class ImpersonateAuthTokenSerializer(serializers.Serializer):
+class ImpersonateAuthTokenSerializer(BaseJSONWebTokenSerializer):
     """
     Serializer used for impersonation.
     """
@@ -148,10 +152,10 @@ class ImpersonateAuthTokenSerializer(serializers.Serializer):
     def validate(self, data):
         user = data["user"]
 
-        payload = JSONWebTokenAuthentication.jwt_create_payload(user)
-        check_user(payload)
+        payload = self._jwt_auth_class.jwt_create_payload(user)
+        check_user(payload, jwt_auth_class=self._jwt_auth_class)
 
-        token = JSONWebTokenAuthentication.jwt_encode_payload(payload)
+        token = self._jwt_auth_class.jwt_encode_payload(payload)
 
         return {
             "user": user,
