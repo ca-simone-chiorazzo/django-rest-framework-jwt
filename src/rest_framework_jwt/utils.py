@@ -31,9 +31,12 @@ def get_username_field():
 
 
 def jwt_get_issuer(token):
-    payload = jwt.decode(token, None, False)
-    if payload:
-        return payload.get('iss')
+    try:
+        payload = jwt.decode(token, None, False)
+        if payload:
+            return payload.get('iss')
+    except jwt.DecodeError:
+        return None
 
 
 def jwt_get_secret_key(payload=None, issuer_code=DEFAULT_ISSUER_CODE):
