@@ -131,8 +131,14 @@ REST_FRAMEWORK = {
         'rest_framework_jwt.blacklist.permissions.IsNotBlacklisted',
     ),
     'DEFAULT_AUTHENTICATION_CLASSES': (
+        'demo.authentication.custom_issuer_authentication.CustomJSONWebTokenAuthentication',
         'rest_framework_jwt.authentication.JSONWebTokenAuthentication',
         'rest_framework.authentication.SessionAuthentication',
         'rest_framework.authentication.BasicAuthentication',
     ),
+}
+
+JWT_AUTH = {
+    'default': {'JWT_ISSUER': 'default'},
+    'custom-issuer': {'JWT_ISSUER': 'custom-issuer'},
 }
