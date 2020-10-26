@@ -108,15 +108,16 @@ def test_valid_credentials_return_jwt_with_expected_claims(user, call_auth_endpo
     token = response.json()["token"]
     payload = JSONWebTokenAuthentication.jwt_decode_token(token)
 
-    expected_claims = {
+    expected_claims = [
         'jti',
         'username',
         'iat',
+        'iss',
         'exp',
         'user_id',
         'orig_iat',
-    }
-    assert payload.keys() == expected_claims
+    ]
+    assert sorted(payload.keys()) == sorted(expected_claims)
 
 
 def test_valid_credentials_with_aud_and_iss_settings_return_jwt(
@@ -192,7 +193,6 @@ def test_valid_credentials_with_auth_cookie_enabled_returns_jwt_and_cookie(
 
     auth_cookie = "jwt-auth"
     monkeypatch.setattr(api_settings, "JWT_AUTH_COOKIE", auth_cookie)
-
     response = call_auth_endpoint("username", "password")
 
     assert auth_cookie in response.cookies
