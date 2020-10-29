@@ -7,6 +7,7 @@ from calendar import timegm
 from datetime import datetime
 
 import jwt
+import six
 from django.apps import apps
 from django.contrib.auth import get_user_model
 from django.utils.encoding import force_str
@@ -30,11 +31,14 @@ def get_username_field():
     return get_user_model().USERNAME_FIELD
 
 
-def jwt_get_issuer(token):
+def jwt_get_issuer_code_from_token(token):
     try:
         payload = jwt.decode(token, None, False)
         if payload:
-            return payload.get('iss')
+            iss = payload.get('iss')
+            for issuer_code, issuer_settings in six.iteritems(api_settings.get_issuer_settings_registry()):
+                if issuer_settings.JWT_ISSUER and issuer_settings.JWT_ISSUER == iss:
+                    return issuer_code
     except jwt.DecodeError:
         return None
 

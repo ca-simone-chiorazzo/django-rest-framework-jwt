@@ -21,7 +21,7 @@ from rest_framework_jwt.blacklist.exceptions import (
 from rest_framework_jwt.compat import gettext_lazy as _
 from rest_framework_jwt.compat import smart_str
 from rest_framework_jwt.settings import api_settings, DEFAULT_ISSUER_CODE
-from rest_framework_jwt.utils import jwt_get_issuer
+from rest_framework_jwt.utils import jwt_get_issuer_code_from_token
 
 
 class JSONWebTokenAuthentication(BaseAuthentication):
@@ -82,7 +82,7 @@ class JSONWebTokenAuthentication(BaseAuthentication):
         # Check that the issuer of the JWT is the same of this authentication class
         # if the issuer it's present and it's not the same of this auth class, return None
         # to go ahead with other auth classes
-        issuer = jwt_get_issuer(token)
+        issuer = jwt_get_issuer_code_from_token(token)
         if issuer and issuer != self.issuer_code:
             return None
 

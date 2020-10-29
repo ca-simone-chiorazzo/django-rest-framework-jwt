@@ -7,6 +7,7 @@ import sys
 
 from django import VERSION
 
+from .multi_issuer_api_settings import DEFAULT_ISSUER_CODE
 from .settings import api_settings
 
 
@@ -39,7 +40,7 @@ def has_set_cookie_samesite():
     return (VERSION >= (2,1,0))
 
 
-def set_cookie_with_token(response, name, token, issuer_code):
+def set_cookie_with_token(response, name, token, issuer_code=DEFAULT_ISSUER_CODE):
     issuer_settings = api_settings.get_issuer_settings(issuer_code)
     params = {
         'expires': datetime.utcnow() + issuer_settings.JWT_EXPIRATION_DELTA,
